@@ -1,0 +1,7 @@
+server:
+  port: 8000
+
+cache:
+  maxSize: "1mb"
+  maxItemSize: "128kb"
+  duration: "1000s"
