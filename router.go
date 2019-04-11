@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cassius/env"
 	"github.com/gorilla/mux"
 	"net/http"
 )
@@ -9,8 +10,8 @@ type Router struct {
 	*mux.Router
 }
 
-func NewRouter(r Storage) *Router {
-	h := &handler{r}
+func NewRouter(r Storage, conf env.Configuration) *Router {
+	h := &handler{r, conf}
 	router := mux.NewRouter()
 	router.HandleFunc("/webpage/{id}", h.PutUrlHandler)
 	router.UseEncodedPath().HandleFunc("/webpage/{id}", h.GetUrlHandler).Methods(http.MethodGet)

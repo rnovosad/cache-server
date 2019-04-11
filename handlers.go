@@ -2,8 +2,9 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"cassius/env"
 	"fmt"
+	"github.com/docker/go-units"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 type handler struct {
 	cache Storage
+	config env.Configuration
 }
 
 func (h *handler) GetUrlHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,6 +24,7 @@ func (h *handler) GetUrlHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	hasCache, content := h.cache.HasCache(urlKey)
 	if hasCache {
+		h.cache.IncreaseHit(urlKey)
 		if _, err:= w.Write([]byte(content)); err != nil {
 			log.Println("can't get URL", err)
 		}
@@ -34,39 +37,71 @@ func (h *handler) GetUrlHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) PutUrlHandler(w http.ResponseWriter, r *http.Request) {
+	maxContentSize, _ := units.FromHumanSize(h.config.Cache.MaxItemSize)
+	maxDbSize, _ := units.FromHumanSize(h.config.Cache.MaxDbSize)
+	maxKeysCount := h.config.Cache.MaxItemsCount
+	dbSize := h.cache.GetDbSize()
+	keysCount := h.cache.GetNumKeys()
 	rawUrl := mux.Vars(r)["id"]
+
 	urlKey, err := url.QueryUnescape(rawUrl)
+
 	if err != nil {
 		log.Println("Can't parse URL", err)
 	}
-	fmt.Println(urlKey)
-	hasCache, content := h.cache.HasCache(urlKey)
-	if hasCache {
+
+	resp, err := http.Get(urlKey)
+
+	if err != nil {
+		log.Println("Can't get URL", err)
+	}
+
+	buf := new(bytes.Buffer)
+	bodySize, err := buf.ReadFrom(resp.Body)
+
+	if err != nil {
+		log.Println("Can't read response", err)
+	}
+
+	if bodySize > maxContentSize {
+		content := fmt.Sprintf("Cache item bodySize is too big, %v", bodySize)
 		if _, err:= w.Write([]byte(content)); err != nil {
-			log.Println("can't get URL", err)
+			log.Println("cant write URL", err)
 		}
-	} else {
-		resp, err := http.Get(urlKey)
-		if err != nil {
-			log.Println("Can't get URL", err)
+		return
+	}
+
+	if dbSize + bodySize > maxDbSize {
+		content := fmt.Sprintf("Cache db bodySize is too big, %v", bodySize)
+		if _, err:= w.Write([]byte(content)); err != nil {
+			log.Println("cant write URL", err)
 		}
-		buf := new(bytes.Buffer)
-		size, err := buf.ReadFrom(resp.Body)
-		fmt.Println("size size", size)
-		if err != nil {
-			log.Println("Can't read response", err)
+		return
+	}
+
+	if dbSize + bodySize > maxDbSize {
+		content := fmt.Sprintf("Cache db bodySize is too big, %v", bodySize)
+		if _, err:= w.Write([]byte(content)); err != nil {
+			log.Println("cant write URL", err)
 		}
-		h.cache.SetCache(urlKey, buf.Bytes())
-		if _, err:= w.Write(buf.Bytes()); err != nil {
-			log.Println("Can't write response", err)
-		}
+		return
+	}
+
+	if h.cache.GetNumKeys() >= maxKeysCount {
+		h.cache.RemoveCache(h.cache.PopOldest())
+	}
+	h.cache.SetCache(urlKey, buf.Bytes())
+	h.cache.IncreaseHit(urlKey)
+	h.cache.SetLastAccess(urlKey)
+	log.Println("keys: ", keysCount)
+	if _, err:= w.Write(buf.Bytes()); err != nil {
+		log.Println("Can't write response", err)
 	}
 }
 
 func (h *handler) TopHandler(w http.ResponseWriter, r *http.Request) {
 	content := h.cache.GetAllCache()
-	data, _ := json.Marshal(content)
-	if _, err:= w.Write(data); err != nil {
+	if _, err:= w.Write(content); err != nil {
 		log.Println("top", err)
 	}
 }

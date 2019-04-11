@@ -15,9 +15,10 @@ type Server struct {
 }
 
 type Cache struct {
-	MaxSize string
+	MaxItemsCount int64
+	MaxDbSize   string
 	MaxItemSize string
-	Duration string
+	Duration    string
 }
 
 func GetConfig() Configuration {

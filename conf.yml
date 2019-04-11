@@ -2,6 +2,7 @@ server:
   port: 8000
 
 cache:
-  maxSize: "1mb"
+  maxItemsCount: 3
+  maxDbSize: "2mb"
   maxItemSize: "128kb"
   duration: "1000s"
