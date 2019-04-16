@@ -9,7 +9,7 @@ package main
 //	"net/url"
 //)
 //
-//func Cached(red *RedisDB, handler func(w http.ResponseWriter, r *http.Request, url string, redis *RedisDB)) http.HandlerFunc {
+//func Cached(red *RedisDB, Handler func(w http.ResponseWriter, r *http.Request, url string, redis *RedisDB)) http.HandlerFunc {
 //	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 //		rawUrl := mux.Vars(r)["id"]
 //		urlKey, _ := url.QueryUnescape(rawUrl)
@@ -22,7 +22,7 @@ package main
 //			}
 //		} else {
 //			c := httptest.NewRecorder()
-//			handler(c, r, urlKey, red)
+//			Handler(c, r, urlKey, red)
 //			fmt.Print("Cache not hit!\n")
 //			content := c.Body.Bytes()
 //			if _, err := w.Write(content); err != nil {

@@ -11,7 +11,8 @@ import (
 
 func main() {
 	config := env.GetConfig()
-	router := NewRouter(NewRedisDB(redis.Options{}), config)
+	h := NewHandler(config, NewRedisDB(redis.Options{}))
+	router := NewRouter(h)
 
 	log.Printf("cache ttl %v", config.Cache.Duration)
 	log.Printf("max items count %v", config.Cache.MaxItemsCount)

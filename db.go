@@ -20,18 +20,6 @@ type CacheScore struct {
 	Member string
 }
 
-type Storage interface {
-	HasCache(key string) (bool, string)
-	GetAllCache() []byte
-	SetCache(k string, v []byte)
-	RemoveCache(k string)
-	IncreaseHit(k string)
-	GetDbSize() int64
-	GetNumKeys() int64
-	SetLastAccess(k string)
-	PopOldest() string
-}
-
 func NewRedisDB(options redis.Options) *RedisDB {
 	client := redis.NewClient(&options)
 	return &RedisDB{client}

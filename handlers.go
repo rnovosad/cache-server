@@ -11,12 +11,31 @@ import (
 	"net/url"
 )
 
-type handler struct {
-	cache Storage
+type storage interface {
+	HasCache(key string) (bool, string)
+	GetAllCache() []byte
+	SetCache(k string, v []byte)
+	RemoveCache(k string)
+	IncreaseHit(k string)
+	GetDbSize() int64
+	GetNumKeys() int64
+	SetLastAccess(k string)
+	PopOldest() string
+}
+
+type Handler struct {
+	cache storage
 	config env.Configuration
 }
 
-func (h *handler) GetUrlHandler(w http.ResponseWriter, r *http.Request) {
+func NewHandler(cfg env.Configuration, storage storage) *Handler {
+	return &Handler{
+		cache:  storage,
+		config: cfg,
+	}
+}
+
+func (h *Handler) GetUrlHandler(w http.ResponseWriter, r *http.Request) {
 	rawUrl := mux.Vars(r)["id"]
 	urlKey, err := url.QueryUnescape(rawUrl)
 	if err != nil {
@@ -36,7 +55,7 @@ func (h *handler) GetUrlHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *handler) PutUrlHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PutUrlHandler(w http.ResponseWriter, r *http.Request) {
 	maxContentSize, _ := units.FromHumanSize(h.config.Cache.MaxItemSize)
 	maxDbSize, _ := units.FromHumanSize(h.config.Cache.MaxDbSize)
 	maxKeysCount := h.config.Cache.MaxItemsCount
@@ -71,24 +90,9 @@ func (h *handler) PutUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if dbSize + bodySize > maxDbSize {
-		content := fmt.Sprintf("Cache db bodySize is too big, %v", bodySize)
-		if _, err:= w.Write([]byte(content)); err != nil {
-			log.Println("cant write URL", err)
-		}
-		return
-	}
-
-	if dbSize + bodySize > maxDbSize {
-		content := fmt.Sprintf("Cache db bodySize is too big, %v", bodySize)
-		if _, err:= w.Write([]byte(content)); err != nil {
-			log.Println("cant write URL", err)
-		}
-		return
-	}
-
-	if h.cache.GetNumKeys() >= maxKeysCount {
-		h.cache.RemoveCache(h.cache.PopOldest())
+	hasCache, _ := h.cache.HasCache(urlKey)
+	for dbSize + bodySize > maxDbSize || (!hasCache && h.cache.GetNumKeys() >= maxKeysCount) {
+		h.cache.PopOldest()
 	}
 	h.cache.SetCache(urlKey, buf.Bytes())
 	h.cache.IncreaseHit(urlKey)
@@ -99,14 +103,14 @@ func (h *handler) PutUrlHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *handler) TopHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) TopHandler(w http.ResponseWriter, r *http.Request) {
 	content := h.cache.GetAllCache()
 	if _, err:= w.Write(content); err != nil {
 		log.Println("top", err)
 	}
 }
 
-func (h *handler) DelUrlHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DelUrlHandler(w http.ResponseWriter, r *http.Request) {
 	rawUrl := mux.Vars(r)["id"]
 	urlKey, _ := url.QueryUnescape(rawUrl)
 	if hasCache, _ := h.cache.HasCache(urlKey); hasCache {
